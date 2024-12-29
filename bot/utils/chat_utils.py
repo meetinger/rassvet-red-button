@@ -22,7 +22,7 @@ def error_format(e):
 
 async def delete_user_from_all_chats_and_send_alert(user: User, session: AsyncSession, bot: Bot):
     user_link = f"{md.hlink(user.full_name, f'tg://user?id={user.id}')}"
-    alert_msg = f"Пользователь {user_link} был {md.hbold("ЗАДЕРЖАН!!!")}"
+    alert_msg = f"Пользователь {user_link} был {md.hbold("ЗАДЕРЖАН.")}"
     user_id = user.id
     query = select(ChatDB)
     chats = (await session.execute(query)).scalars()
