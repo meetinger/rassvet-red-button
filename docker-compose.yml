@@ -1,7 +1,18 @@
 version: "3.9"
 
 services:
-   rassvet-red-button:
+  rassvet-red-button-migrations:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rassvet_red_button_migrations
+    command: poetry run alembic upgrade head
+    volumes:
+      - ./database.sqlite3:/app/database.sqlite3
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  rassvet-red-button:
     build:
       context: .
       dockerfile: Dockerfile
@@ -13,3 +24,5 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - BOT_TOKEN=YOUR_TOKEN
+    depends_on:
+      - rassvet-red-button-migrations
