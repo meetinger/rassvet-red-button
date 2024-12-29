@@ -1,0 +1,15 @@
+version: "3.9"
+
+services:
+   rassvet-red-button:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rassvet_red_button_container
+    volumes:
+      - ./database.sqlite3:/app/database.sqlite3
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - BOT_TOKEN=YOUR_TOKEN
