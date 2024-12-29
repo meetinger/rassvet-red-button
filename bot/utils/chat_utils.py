@@ -1,50 +1,99 @@
+import asyncio
+import html
+from pprint import pprint
+
+import aiogram.utils.markdown as md
+
 from aiogram.exceptions import TelegramMigrateToChat, TelegramBadRequest
+from aiogram.types import User
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from aiogram import Bot
 
 from core.logs import get_logger
 from db.models import Chat as ChatDB
-from db.models.users import User as UserDB
 
 logger = get_logger(__file__)
 
-async def delete_user_from_all_chats_and_send_alert(user_db: UserDB, session: AsyncSession, bot: Bot):
-    alert_msg = f"Пользователь {user_db.user_link} был ЗАДЕРЖАН!"
 
+def error_format(e):
+    return f"Произошла ошибка: {md.hblockquote(html.escape(str(e)))}"
+
+
+async def delete_user_from_all_chats_and_send_alert(user: User, session: AsyncSession, bot: Bot):
+    user_link = f"{md.hlink(user.full_name, f'tg://user?id={user.id}')}"
+    alert_msg = f"Пользователь {user_link} был {md.hbold("ЗАДЕРЖАН!!!")}"
+    user_id = user.id
     query = select(ChatDB)
     chats = (await session.execute(query)).scalars()
-    for chat in chats:
-        chat_id = chat.telegram_id
+
+    async def get_user_chat_status(_user_id: int, _chat_id: int):
+        nonlocal bot
         try:
-            await bot.send_message(chat_id=chat_id, text=alert_msg)
+            chat_member = await bot.get_chat_member(chat_id=_chat_id, user_id=_user_id)
+            return chat_member.status
+        except:
+            raise
+
+    async def process_user(_user_id: int, _chat_id: int):
+
+        logger.debug(f"Processing user {_user_id} in chat {_chat_id}")
+
+        try:
+            user_chat_status = await get_user_chat_status(_user_id, _chat_id)
         except TelegramMigrateToChat as e:
-            chat_id = e.migrate_to_chat_id
-            await bot.send_message(chat_id=chat_id, text=alert_msg)
+            _chat_id = e.migrate_to_chat_id
+            user_chat_status = await get_user_chat_status(_user_id, _chat_id)
         except Exception as e:
-            logger.error(f"Error sending alert to chat {chat_id}: {e}")
-        try:
-            await bot.promote_chat_member(
-                chat_id=chat_id,
-                user_id=user_db.telegram_id,
-                is_anonymous=False,
-                can_manage_chat=False,
-                can_post_messages=False,
-                can_edit_messages=False,
-                can_delete_messages=False,
-                can_manage_video_chats=False,
-                can_restrict_members=False,
-                can_promote_members=False,
-                can_change_info=False,
-                can_invite_users=False,
-                can_pin_messages=False,
-            )
-            is_banned = await bot.ban_chat_member(chat_id=chat_id, user_id=user_db.telegram_id)
-            print(f'Ban status: {is_banned} Chat id: {chat_id}')
-            # await bot.unban_chat_member(chat_id=chat_id, user_id=user_db.telegram_id)
-            await bot.send_message(chat_id=chat_id, text=f'Пользователь {user_db.user_link} удалён из чата')
-        except Exception as e:
+            logger.error(f"Error sending alert to chat {_chat_id}: {e}")
+            await bot.send_message(_chat_id, f"{alert_msg}\nПроизошла ошибка. \n{error_format(e)}",
+                                   )
+            return
+
+        if user_chat_status == 'creator':
+            logger.error(f"Error user banning in chat {_chat_id}: User is creator")
+            await bot.send_message(_chat_id,
+                                   f"{alert_msg}\nОн является владельцем чата, поэтому его удалить нельзя", )
+            return
+        if user_chat_status == 'administrator':
             try:
-                await bot.send_message(chat_id=chat_id, text=f'Ошибка удаления пользователя {user_db.user_link}: {e}')
-            except:
-                pass
+                logger.debug(f"Demoting user {_user_id} in chat {_chat_id}")
+                is_user_demoted = await bot.promote_chat_member(
+                    chat_id=_chat_id,
+                    user_id=_user_id,
+                    is_anonymous=False,
+                    can_manage_chat=False,
+                    can_delete_messages=False,
+                    can_manage_video_chats=False,
+                    can_restrict_members=False,
+                    can_promote_members=False,
+                    can_change_info=False,
+                    can_invite_users=False,
+                    can_post_messages=False,
+                    can_edit_messages=False,
+                    can_pin_messages=False,
+                    can_manage_topics=False
+                )
+                if not is_user_demoted:
+                    logger.error(f"Error user banning in chat {_chat_id}: User was not demoted")
+                    raise TelegramBadRequest
+            except TelegramBadRequest as e:
+                logger.error(f"User {_user_id} is admin in chat {_chat_id}: {str(e)}")
+                await bot.send_message(_chat_id,
+                                       f"{alert_msg}\nОн является администратором чата, боты не могут снимать админку, поэтому его удалить нельзя. \n{error_format(e)}",
+                                       )
+                return
+        if user_chat_status in ('left', 'restricted', 'kicked'):
+            return
+
+        try:
+            await bot.ban_chat_member(chat_id=_chat_id, user_id=_user_id)
+            await bot.send_message(_chat_id, f"{alert_msg}.\nОн был удален из чата.")
+        except Exception as e:
+            logger.error(f"Error sending alert to chat {_chat_id}: {str(e)}")
+            await bot.send_message(_chat_id,
+                                   f"{alert_msg}\nПроизошла ошибка при удалении пользователя из чата. \n{error_format(e)}",
+                                   )
+            return
+
+    await asyncio.gather(*[process_user(user_id, _chat.telegram_id) for _chat in chats])

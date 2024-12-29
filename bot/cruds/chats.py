@@ -16,11 +16,9 @@ async def get_or_create_chat(chat: Chat, session: AsyncSession) -> ChatDB:
             telegram_id=chat.id,
             title=chat.title,
             description=chat.description,
-            # owner_user_id=chat.owner_user_id,
         )
         session.add(chat_db)
         await session.flush()
-    logger.info(f"Chat: {chat_db.to_dict()}")
     return chat_db
 
 async def get_chat_or_none_by_telegram_id(telegram_id: int, session: AsyncSession) -> ChatDB:
