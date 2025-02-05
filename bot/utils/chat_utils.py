@@ -98,4 +98,10 @@ async def delete_user_from_all_chats_and_send_alert(user: User, session: AsyncSe
                                    )
             return
 
-    await asyncio.gather(*[process_user(user_id, _chat.telegram_id) for _chat in chats])
+    async def _process_user_wrapper(_user_id: int, _chat_id: int):
+        try:
+            await process_user(_user_id, _chat_id)
+        except Exception as e:
+            logger.error(f"Error processing user {_user_id} in chat {_chat_id}: {str(e)}")
+
+    await asyncio.gather(*[_process_user_wrapper(user_id, _chat.telegram_id) for _chat in chats])

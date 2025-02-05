@@ -20,24 +20,25 @@ class JailStates(StatesGroup):
     confirmed = State()
 
 
-@router.message(lambda message: (message.text or "").lower() == "МЕНЯ ЗАДЕРЖАЛИ".lower())
+@router.message(lambda message: (message.text or "").lower() == "МЕНЯ ЗАДЕРЖАЛИ".lower()
+                                and message.chat.type == "private")
 @inject_user
 async def jail_handler(user: User, message: types.Message, state: FSMContext):
     logger.info(f'User {user.id} pressed "МЕНЯ ЗАДЕРЖАЛИ"')
     await state.set_state(JailStates.confirm_await)
-    await message.answer("Тебя точно задержали?", reply_markup=get_bot_keyboard_confirm_jail())
+    await message.answer("Попробуй еще раз, может в следующий раз задержат)0)))", reply_markup=get_bot_keyboard_confirm_jail())
 
 @router.message(JailStates.confirm_await)
 @inject_user
 async def jail_handler(user: User, message: types.Message, state: FSMContext):
     logger.info(f'User {user.id} pressed "{message.text}"')
-    if message.text.lower() == "МЕНЯ ПРАВДА ЗАДЕРЖАЛИ".lower():
+    if (message.text or "").lower() == "МЕНЯ ПРАВДА ЗАДЕРЖАЛИ".lower():
         await state.set_state(JailStates.confirmed)
         await message.answer("Вас поняли...", reply_markup=get_bot_keyboard_jail())
         async with get_session() as session:
             await delete_user_from_all_chats_and_send_alert(user, session, message.bot)
     else:
-        await message.answer("Попробуй еще раз", reply_markup=get_bot_keyboard_jail())
+        await message.answer("Попробуй еще раз, может в следующий раз задержат)0)))", reply_markup=get_bot_keyboard_jail())
 
 
 @router.message(lambda message: message.chat.type in ["group", "supergroup"])
