@@ -26,3 +26,4 @@ services:
       - BOT_TOKEN=YOUR_TOKEN
     depends_on:
       - rassvet-red-button-migrations
+    restart: always
