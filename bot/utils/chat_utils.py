@@ -37,7 +37,7 @@ async def delete_user_from_all_chats_and_send_alert(user: User, session: AsyncSe
 
     async def process_user(_user_id: int, _chat_id: int):
 
-        logger.debug(f"Processing user {_user_id} in chat {_chat_id}")
+        logger.info(f"Processing user {_user_id} in chat {_chat_id}")
 
         try:
             user_chat_status = await get_user_chat_status(_user_id, _chat_id)
@@ -57,7 +57,7 @@ async def delete_user_from_all_chats_and_send_alert(user: User, session: AsyncSe
             return
         if user_chat_status == 'administrator':
             try:
-                logger.debug(f"Demoting user {_user_id} in chat {_chat_id}")
+                logger.info(f"Demoting user {_user_id} in chat {_chat_id}")
                 is_user_demoted = await bot.promote_chat_member(
                     chat_id=_chat_id,
                     user_id=_user_id,
@@ -83,7 +83,9 @@ async def delete_user_from_all_chats_and_send_alert(user: User, session: AsyncSe
                                        f"{alert_msg}\nОн является администратором чата, боты не могут снимать админку, поэтому его удалить нельзя. \n{error_format(e)}",
                                        )
                 return
-        if user_chat_status in ('left', 'restricted', 'kicked'):
+        if user_chat_status in ('left', 'kicked'):
+            logger.error(f"User {_user_id} is not in chat {_chat_id}")
+            await bot.send_message(_chat_id, f"{alert_msg}\nОн уже был удален из чата.", )
             return
 
         try:
