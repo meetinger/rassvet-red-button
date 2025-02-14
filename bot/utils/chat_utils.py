@@ -85,7 +85,7 @@ async def delete_user_from_all_chats_and_send_alert(user: User, session: AsyncSe
                 return
         if user_chat_status in ('left', 'kicked'):
             logger.error(f"User {_user_id} is not in chat {_chat_id}")
-            await bot.send_message(_chat_id, f"{alert_msg}\nОн уже был удален из чата.", )
+            # await bot.send_message(_chat_id, f"{alert_msg}\nОн уже был удален из чата.", )
             return
 
         try:
